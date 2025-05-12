@@ -1,0 +1,59 @@
+# Apply above function to the Title Column
+df["Keyword"] = df.apply(assign_keyword, axis=1)
+df = df[df["Keyword"] != "None"] # Optional: remove unmatched posts
+
+# Save the cleaned data
+df.to_csv("reddit_coral_data.csv", index=False)
+print(f"Scaped {len(df)} posts with matching keywords.")
+
+
+# Function to count keyword occurrences in a given text(title). Returns a dictionary + each keyword is a key
+def count_keywords(text, keyword_map):
+    content = text.lower()
+    count = {}
+    for label, terms in keyword_map.items():
+        count[label] = sum(term in content for term in terms)
+    return count
+
+# Initialize dictionaries to store keyword frequencies
+keyword_counts_before = {keyword: 0 for keyword in keyword_map.keys()} # store the frequency of each keyword for posts labeled "Before".
+keyword_counts_after = {keyword: 0 for keyword in keyword_map.keys()} # store the frequency of each keyword for posts labeled "After".
+
+# Loop over the rows and categorize keyword frequencies
+for index, row in df.iterrows(): # loops through the DataFrame by row; tells the index (row index) and row (the data of that row)
+    # Get the title of the post
+    title = row['Title']
+    
+    # Count the keywords in the title
+    keyword_count = count_keywords(title, keyword_map)
+    
+    # Add the counts to before or after categories
+    if row['Time_Period'] == 'Before':
+        for keyword, count in keyword_count.items():
+            keyword_counts_before[keyword] += count
+    else:
+        for keyword, count in keyword_count.items():
+            keyword_counts_after[keyword] += count
+
+# Prepare data for plotting
+keyword_freq = pd.DataFrame({
+    'Keyword': list(keyword_map.keys()),
+    'Before': [keyword_counts_before[key] for key in keyword_map],
+    'After': [keyword_counts_after[key] for key in keyword_map]
+})
+
+# Melt the DataFrame for easier plotting. Resahpes dataframe so each keyword appears in two rows—one for "Before" and one for "After."
+keyword_freq_melted = keyword_freq.melt(id_vars='Keyword', value_vars=['Before', 'After'], var_name='Time_Period', value_name='Frequency')
+
+# Plot the results
+plt.figure(figsize=(12, 6)) # size of plot is 10in by 6in
+ax = sns.barplot(x='Keyword', y='Frequency', hue='Time_Period', estimator="sum", errorbar=None, data=keyword_freq_melted, palette='coolwarm') # bar plot using seaborn. x-axis: keyword, y-axis is frequency of keywords
+for container in ax.containers:
+    ax.bar_label(container)
+
+plt.title('Keyword Frequency Before vs. After Hurricane Maria') # title
+plt.xlabel('Keyword') 
+plt.ylabel('Frequency')
+plt.xticks(rotation=45, ha='right') # rotate x-axis labels to stop overlap
+plt.tight_layout() # adjust layout so labels aren't cut off
+plt.show() # show plot
